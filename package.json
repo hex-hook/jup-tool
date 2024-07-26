@@ -1,0 +1,17 @@
+{
+  "name": "jup-tool",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@jup-ag/api": "^6.0.24",
+    "@project-serum/anchor": "^0.26.0",
+    "@solana/spl-token": "^0.4.8",
+    "@solana/web3.js": "^1.95.1"
+  }
+}
