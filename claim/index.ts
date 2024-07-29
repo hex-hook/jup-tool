@@ -1,6 +1,6 @@
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
 import config from '@/config.toml'
-import { AnchorProvider, BN, Program, Wallet, type Idl } from '@project-serum/anchor'
+import { AnchorProvider, BN, Program, Wallet, type Idl } from '@coral-xyz/anchor'
 import merkleDistributorIdl from './idl.json'
 import { createAssociatedTokenAccountInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 

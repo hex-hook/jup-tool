@@ -17,5 +17,5 @@ jup 工具脚本
 | -- | -- | -- |
 | @solana/web3.js | 区块链交互 | |
 | @solana/spl-token | 代币操作 | |
-| @project-serum/anchor | 智能合约交互 | |
+| @coral-xyz/anchor | 智能合约交互 | |
 | @jup-ag/api | swap | | 
