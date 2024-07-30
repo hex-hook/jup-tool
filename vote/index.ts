@@ -1,10 +1,10 @@
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js'
 import { Program, BN, AnchorProvider, type Idl, Wallet } from '@coral-xyz/anchor'
-import govIdl from './gov_idl.json'
-import voteIdl from './vote_idl.json'
+import { LOCKED_VOTER_PROGRAM_ACCOUNT, LOCKER } from '@/contains'
+import { deriveEscrow } from '@/util'
+import govIdl from '@/idl/gov.json'
+import voteIdl from '@/idl/vote.json'
 import config from '@/config.toml'
-import { LOCKED_VOTER_PROGRAM_ACCOUNT, LOCKER } from './contains'
-import { deriveEscrow } from './stake'
 
 // jup gov 程序账户
 const JUP_GOV_PROGRAM_ACCOUNT = new PublicKey('GovaE4iu227srtG2s3tZzB4RmWBzw8sTwrCLZz7kN7rY');
@@ -79,12 +79,15 @@ async function getNewVoteAccountInstruction(proposal: PublicKey, payer: Keypair)
  * @returns 
  */
 export async function voteProposal(proposal: PublicKey, payer: Keypair, side: number): Promise<string | undefined> {
+    // 1. 查询是否已经投票
     const [voted, voteAccount] = await isVoted(proposal, payer.publicKey)
     if (voted) {
         console.log(`proposal [${proposal.toBase58()}]: account [${payer.publicKey.toBase58()}] already voted`)
         return
     }
+    // 2. 获取创建投票账户指令
     const newVoteInstruction = await getNewVoteAccountInstruction(proposal, payer)
+    // 3. 构建优先费指令
     const preInstructions = new Array<TransactionInstruction>(
         ComputeBudgetProgram.setComputeUnitPrice({
             microLamports: 100000
@@ -95,8 +98,10 @@ export async function voteProposal(proposal: PublicKey, payer: Keypair, side: nu
         newVoteInstruction
     )
     const program = new Program(voteIdl as Idl, LOCKED_VOTER_PROGRAM_ACCOUNT, new AnchorProvider(connection, new Wallet(payer), {}))
+    // 4. 派生托管账户（投票前应该已经创建过托管账户）
     const escrowAccount = deriveEscrow(payer.publicKey)
     
+    // 5. 构建投票指令并将其他指令放到前置指令中
     const tx = await program.methods.castVote(new BN(side))
         .accounts({
             escrow: escrowAccount,

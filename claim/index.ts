@@ -1,12 +1,12 @@
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
-import config from '@/config.toml'
 import { AnchorProvider, BN, Program, Wallet, type Idl } from '@coral-xyz/anchor'
-import merkleDistributorIdl from './idl.json'
 import { createAssociatedTokenAccountInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import merkleDistributorIdl from '@/idl/claim.json'
+import config from '@/config.toml'
 
 const connection = new Connection(config.solana.rpc, "confirmed")
-const lfgApiBaseUrl = 'https://worker.jup.ag/jup-claim-proof';
-const lfgDisProgram = 'DiSLRwcSFvtwvMWSs7ubBMvYRaYNYupa76ZSuYLe6D7j';
+const LFG_API_BASE_URL = 'https://worker.jup.ag/jup-claim-proof';
+const LFG_DIS_PROGRAM = 'DiSLRwcSFvtwvMWSs7ubBMvYRaYNYupa76ZSuYLe6D7j';
 
 interface LFGResponse {
     merkle_tree: string
@@ -23,7 +23,7 @@ interface LFGResponse {
  * @returns 
  */
 export async function getLfgAirdrop(mint: string, address: string): Promise<LFGResponse | null> {
-    const resp = await fetch(`${lfgApiBaseUrl}/${mint}/${address}`)
+    const resp = await fetch(`${LFG_API_BASE_URL}/${mint}/${address}`)
     if (resp.status !== 200) {
         throw new Error(`get airdrop failed ${resp.status}`)
     }
@@ -50,7 +50,7 @@ function deriveClaimStatus(
             new PublicKey(claimant).toBytes(),
             new PublicKey(merkleTree).toBytes(),
         ],
-        new PublicKey(lfgDisProgram)
+        new PublicKey(LFG_DIS_PROGRAM)
     )[0];
 }
 
@@ -75,15 +75,15 @@ export async function claim(mint: string, payer: Keypair): Promise<number> {
     const from = await getAssociatedTokenAddress(mintAccount, new PublicKey(data.merkle_tree), true)
     const to = await getAssociatedTokenAddress(mintAccount, payer.publicKey, true)
 
-    // 1. 创建代币账户
+    // 2. 创建代币账户
     const createATAInstruction = createAssociatedTokenAccountInstruction(payer.publicKey, to, payer.publicKey, mintAccount)
 
-    // 2. 调用智能合约 claim
+    // 3. 调用智能合约 claim
     const provider = new AnchorProvider(connection, new Wallet(payer), {})
-    const program = new Program(merkleDistributorIdl as Idl, lfgDisProgram, provider)
+    const program = new Program(merkleDistributorIdl as Idl, LFG_DIS_PROGRAM, provider)
     // 参数：解锁数量，锁定数量，merkle proof
     const claimInstruction = await program.methods.newClaim(new BN(data.amount), new BN(data.locked_amount), data.proof).accounts({
-        distributor: new PublicKey(lfgDisProgram),
+        distributor: new PublicKey(LFG_DIS_PROGRAM),
         claimStatus: claimStatusAddress,
         from,
         to,
