@@ -1,26 +1,14 @@
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { LOCKED_VOTER_PROGRAM_ACCOUNT, LOCKER } from "./contains";
-import config from "@/config.toml";
-import voteIdl from './vote_idl.json'
+import { LOCKED_VOTER_PROGRAM_ACCOUNT, LOCKER } from "@/contains";
 import { AnchorProvider, Program, Wallet, type Idl } from "@coral-xyz/anchor";
 import { createAssociatedTokenAccountInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { deriveEscrow } from "@/util";
+import config from "@/config.toml";
+import voteIdl from '@/idl/vote.json'
 
 const JUP_MINT = new PublicKey('JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN')
 const connection = new Connection(config.solana.rpc, 'confirmed')
 
-/**
- * 派生代管账户
- * @param locker 锁定账户
- * @param walletAccount 钱包账户
- * @param lockedVoter 锁定投票账户
- * @returns 
- */
-export function deriveEscrow(walletAccount: PublicKey): PublicKey {
-    return PublicKey.findProgramAddressSync(
-        [Buffer.from('Escrow'), LOCKER.toBytes(), walletAccount.toBytes()],
-        LOCKED_VOTER_PROGRAM_ACCOUNT
-    )[0]
-}
 
 /**
  * 是否已经存在托管账户
@@ -39,6 +27,7 @@ async function ensureEscrowAccount(walletAccount: PublicKey): Promise<[boolean, 
     }
 }
 
+
 /**
  * 质押 jup
  * @param payer 钱包
@@ -46,6 +35,7 @@ async function ensureEscrowAccount(walletAccount: PublicKey): Promise<[boolean, 
  * @returns 
  */
 export async function stake(payer: Keypair, amount: number): Promise<string> {
+    // 1. 查询 JUP 代币账户
     const tokenAccount = await connection.getParsedTokenAccountsByOwner(payer.publicKey, { mint: JUP_MINT })
     // 没有代币账户即没有 jup 代币
     if (tokenAccount.value.length == 0) {
@@ -57,6 +47,7 @@ export async function stake(payer: Keypair, amount: number): Promise<string> {
         throw new Error('insufficient balance')
     }
 
+    // 2. 构建优先费指令
     const instructions = new Array<TransactionInstruction>(
         ComputeBudgetProgram.setComputeUnitPrice({
             microLamports: 100000
@@ -65,6 +56,7 @@ export async function stake(payer: Keypair, amount: number): Promise<string> {
             units: 400000
         })
     )
+    // 3. 查询是否已经存在托管账户，如果没有则先创建托管账户
     const [ensureEscrow, escrow] = await ensureEscrowAccount(payer.publicKey)
     if (!ensureEscrow) {
         instructions.push(createAssociatedTokenAccountInstruction(
@@ -76,6 +68,7 @@ export async function stake(payer: Keypair, amount: number): Promise<string> {
         ))
     }
 
+    // 4. 查询托管账户是否存在代币账户，如果没有则创建代币账户
     const escrowTokenAccount = await getAssociatedTokenAddress(JUP_MINT, escrow, true)
     const escrowTokenAccountExists = await connection.getAccountInfo(escrowTokenAccount)
     if (!escrowTokenAccountExists) {
@@ -89,6 +82,7 @@ export async function stake(payer: Keypair, amount: number): Promise<string> {
     }
 
     const program = new Program(voteIdl as Idl, LOCKED_VOTER_PROGRAM_ACCOUNT, new AnchorProvider(connection, new Wallet(payer), {}))
+    // 5. 构建质押指令
     const stakeInstruction = await program.methods.increaseLockedAmount(amount)
         .accounts({
             escrow,
@@ -108,6 +102,7 @@ export async function stake(payer: Keypair, amount: number): Promise<string> {
             locker: LOCKER,
             escrowOwner: payer.publicKey
         })
+        // 优先费、创建账户指令放质押指令前
         .preInstructions(instructions)
         .postInstructions([stakeInstruction])
         .rpc()

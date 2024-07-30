@@ -1,5 +1,5 @@
-import { swap } from "./swap"
-import { claim } from "./claim"
+import { swap } from "@/swap"
+import { claim } from "@/claim"
 import { Keypair } from "@solana/web3.js"
 import { createJupiterApiClient } from "@jup-ag/api"
 
